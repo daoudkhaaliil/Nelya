@@ -24,18 +24,40 @@ app.use(helmet({
     },
   },
 }));
-// [BUG-004 FIX] CORS restreint - mettre l'URL frontend dans ALLOWED_ORIGIN
+// [BUG-004 FIX] CORS restreint - ALLOWED_ORIGIN + domaines boutique / Vercel.
 const allowedOrigins = (process.env.ALLOWED_ORIGIN || 'http://localhost:4200')
   .split(',')
-  .map((s) => s.trim())
+  .map((s) => s.trim().replace(/\/$/, ''))
   .filter(Boolean);
+
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  const normalized = origin.replace(/\/$/, '');
+  if (allowedOrigins.includes('*') || allowedOrigins.includes(normalized)) return true;
+  try {
+    const { hostname } = new URL(normalized);
+    return (
+      hostname === 'nelyacosmetique.tn' ||
+      hostname === 'www.nelyacosmetique.tn' ||
+      hostname.endsWith('.vercel.app') ||
+      hostname.endsWith('.up.railway.app')
+    );
+  } catch {
+    return false;
+  }
+}
+
+function applyCorsHeaders(req, res) {
+  const origin = req.headers.origin;
+  if (origin && isAllowedOrigin(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Vary', 'Origin');
+  }
+}
+
 app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
-      return callback(null, true);
-    }
-    return callback(new Error('Origine CORS refusée'));
-  },
+  origin: (origin, callback) => callback(null, isAllowedOrigin(origin)),
   credentials: true
 }));
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
@@ -46,7 +68,7 @@ const apiLimiter = rateLimit({
   max: 180,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => req.path === '/health' || req.originalUrl === '/api/health',
+  skip: (req) => req.method === 'OPTIONS' || req.path === '/health' || req.originalUrl === '/api/health',
   message: { message: 'Trop de requêtes. Réessayez dans une minute.' }
 });
 app.use('/api', apiLimiter);
@@ -137,7 +159,7 @@ app.use((err, req, res, next) => {
     console.error('[error]', err.stack || err.message);
   }
   if (res.headersSent) return;
-  // Le détail de l'erreur peut révéler la structure de la base : réservé au développement.
+  applyCorsHeaders(req, res);
   const payload = { message: 'Une erreur interne est survenue' };
   if (process.env.NODE_ENV !== 'production') {
     payload.error = err.message;
