@@ -8,6 +8,16 @@ const { normalizeProductImages } = require('../utils/productImages');
 
 const ENTITY_BY_MODEL = { Product: 'product', Category: 'category', User: 'user' };
 
+function sendWriteError(res, next, error) {
+  if (error.name === 'SequelizeUniqueConstraintError') {
+    return res.status(400).json({ error: 'Cette valeur existe déjà.' });
+  }
+  if (error.name === 'SequelizeValidationError') {
+    return res.status(400).json({ error: error.errors?.[0]?.message || 'Données invalides.' });
+  }
+  return next(error);
+}
+
 function recordLabel(modelName, row) {
   if (!row) return '';
   const json = typeof row.toJSON === 'function' ? row.toJSON() : row;
@@ -23,6 +33,7 @@ function recordLabel(modelName, row) {
 const MODEL_CONFIG = {
   Product: {
     publicRead: true,
+    alwaysPaginate: true,
     writePermission: 'products.manage',
     writeFields: ['reference', 'name', 'contenance', 'description', 'price', 'cost_price', 'stock', 'image_url', 'images', 'category', 'subcategory'],
     searchFields: ['name', 'description', 'reference', 'category', 'subcategory'],
@@ -145,7 +156,9 @@ function createDynamicRouter(modelName) {
   // par compatibilité avec les écrans qui chargent une collection courte (catégories).
   router.get('/', checkReadAuth, async (req, res, next) => {
     try {
-      const { where, order, limit, offset, page, paginated } = buildListQuery(req.query, config);
+      const query = buildListQuery(req.query, config);
+      const { where, order, limit, offset, page } = query;
+      const paginated = config.alwaysPaginate || query.paginated;
 
       if (!paginated) {
         const data = await service.getAll({ ...getReadOptions(req), where, order });
@@ -165,13 +178,13 @@ function createDynamicRouter(modelName) {
     }
   });
 
-  router.get('/:id', checkReadAuth, async (req, res) => {
+  router.get('/:id', checkReadAuth, async (req, res, next) => {
     try {
       const data = await service.getById(req.params.id, getReadOptions(req));
       if (!data) return res.status(404).json({ message: 'Not found' });
       res.json(sanitize(modelName, data, req));
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      next(error);
     }
   });
 
@@ -181,7 +194,7 @@ function createDynamicRouter(modelName) {
   };
 
   // [BUG-003 FIX] Création : authentifié + rôle admin ou seller
-  router.post('/', auth, authorize('admin', 'seller'), checkWritePermission, async (req, res) => {
+  router.post('/', auth, authorize('admin', 'seller'), checkWritePermission, async (req, res, next) => {
     try {
       const data = getWriteBody(req, res);
       if (data === null) return;
@@ -198,12 +211,12 @@ function createDynamicRouter(modelName) {
       }
       res.status(201).json(sanitize(modelName, created, req));
     } catch (error) {
-      res.status(400).json({ error: error.message });
+      sendWriteError(res, next, error);
     }
   });
 
   // [BUG-003 FIX] Modification : authentifié + rôle admin ou seller
-  router.put('/:id', auth, authorize('admin', 'seller'), checkWritePermission, async (req, res) => {
+  router.put('/:id', auth, authorize('admin', 'seller'), checkWritePermission, async (req, res, next) => {
     try {
       const data = getWriteBody(req, res);
       if (data === null) return;
@@ -225,12 +238,12 @@ function createDynamicRouter(modelName) {
       }
       res.json(sanitize(modelName, fresh, req));
     } catch (error) {
-      res.status(400).json({ error: error.message });
+      sendWriteError(res, next, error);
     }
   });
 
   // [BUG-003 FIX] Suppression : authentifié + rôle admin uniquement
-  router.delete('/:id', auth, authorize('admin'), async (req, res) => {
+  router.delete('/:id', auth, authorize('admin'), async (req, res, next) => {
     try {
       const existing = await service.getById(req.params.id);
       const deleted = await service.delete(req.params.id);
@@ -247,7 +260,7 @@ function createDynamicRouter(modelName) {
       }
       res.status(204).send();
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      next(error);
     }
   });
 

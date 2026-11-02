@@ -1,9 +1,8 @@
 import { Routes } from '@angular/router';
 import { RoleGuard } from './role.guard';
-import { HomeComponent } from './home/home.component';
 
 export const routes: Routes = [
-  { path: '', component: HomeComponent },
+  { path: '', loadComponent: () => import('./home/home.component').then(m => m.HomeComponent) },
   {
     path: 'auth',
     loadChildren: () => import('./auth/auth.routes').then(m => m.AUTH_ROUTES)

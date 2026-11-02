@@ -1,4 +1,5 @@
-import { Component, Inject, OnInit } from '@angular/core';
+import { Component, Inject, OnInit, DestroyRef, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { CartService, CartItem } from '../services/cart.service';
 import { MatCardModule } from '@angular/material/card';
@@ -248,9 +249,9 @@ export class CheckoutDialogComponent {
       
       <div class="cart-layout" *ngIf="items.length > 0; else emptyCart">
         <div class="items-list">
-          <mat-card class="cart-card" *ngFor="let item of items">
+          <mat-card class="cart-card" *ngFor="let item of items; trackBy: trackById">
             <div class="item-content">
-              <img [src]="item.image_url | imageUrl" [alt]="item.name" class="item-img">
+              <img [src]="item.image_url | imageUrl" [alt]="item.name" class="item-img" loading="lazy" decoding="async" width="80" height="80">
               <div class="item-details">
                 <span class="category-label">{{item.category}}</span>
                 <h3>{{item.name}}</h3>
@@ -363,6 +364,7 @@ export class CheckoutDialogComponent {
   `]
 })
 export class CartComponent implements OnInit {
+  private destroyRef = inject(DestroyRef);
   items: CartItem[] = [];
   total = 0;
   estimatedPoints = 0;
@@ -380,19 +382,23 @@ export class CartComponent implements OnInit {
   ) {}
 
   ngOnInit() {
-    this.cartService.cartItems$.subscribe(items => {
+    this.cartService.cartItems$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(items => {
       this.items = items;
       this.total = this.cartService.totalAmount;
       this.estimatedPoints = this.settings.pointsForItems(items);
     });
 
-    this.authService.currentUser$.subscribe(user => {
+    this.authService.currentUser$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(user => {
       this.currentUser = user;
     });
 
-    this.settings.guestCheckout$.subscribe(enabled => {
+    this.settings.guestCheckout$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(enabled => {
       this.guestCheckoutEnabled = enabled;
     });
+  }
+
+  trackById(_index: number, item: CartItem): string {
+    return item.id;
   }
 
   increase(item: CartItem) {

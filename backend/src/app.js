@@ -39,14 +39,25 @@ app.use(cors({
   credentials: true
 }));
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
+
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 180,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.path === '/health' || req.originalUrl === '/api/health',
+  message: { message: 'Trop de requêtes. Réessayez dans une minute.' }
+});
+app.use('/api', apiLimiter);
 
 // Images : d’abord le dossier persistant (volume Railway), puis les visuels du dépôt.
 const { repoImgDir, persistentImgDir, ensureImgDirs } = require('./config/imgPaths');
 ensureImgDirs();
-app.use('/img', express.static(persistentImgDir));
+const imgStatic = { maxAge: '7d', etag: true, lastModified: true };
+app.use('/img', express.static(persistentImgDir, imgStatic));
 if (persistentImgDir !== repoImgDir) {
-  app.use('/img', express.static(repoImgDir));
+  app.use('/img', express.static(repoImgDir, imgStatic));
 }
 
 // Upload d'images (produits) – admin & employés
@@ -93,26 +104,25 @@ app.get('/', (req, res) => {
   res.json({ message: 'Nelya API is running' });
 });
 
-// Health check endpoint pour le monitoring
+let lastDbOkAt = 0;
 app.get('/api/health', async (req, res) => {
   try {
-    // Vérifier la connexion à la base de données
     const sequelize = require('./config/database');
-    await sequelize.authenticate();
-    
+    if (Date.now() - lastDbOkAt > 10000) {
+      await sequelize.authenticate();
+      lastDbOkAt = Date.now();
+    }
     res.status(200).json({
       status: 'healthy',
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
-      database: 'connected',
-      environment: process.env.NODE_ENV || 'development'
+      database: 'connected'
     });
-  } catch (error) {
+  } catch {
     res.status(503).json({
       status: 'unhealthy',
       timestamp: new Date().toISOString(),
-      database: 'disconnected',
-      error: error.message
+      database: 'disconnected'
     });
   }
 });
@@ -121,7 +131,11 @@ app.get('/api/health', async (req, res) => {
 // jusqu'au timeout du navigateur au lieu de répondre. Doit rester en dernier.
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
-  console.error('[error]', err.stack || err.message);
+  if (process.env.NODE_ENV === 'production') {
+    console.error('[error]', err.message);
+  } else {
+    console.error('[error]', err.stack || err.message);
+  }
   if (res.headersSent) return;
   // Le détail de l'erreur peut révéler la structure de la base : réservé au développement.
   const payload = { message: 'Une erreur interne est survenue' };

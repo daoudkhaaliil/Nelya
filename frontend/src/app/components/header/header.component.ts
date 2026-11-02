@@ -1,4 +1,5 @@
-import { Component, OnInit, HostListener } from '@angular/core';
+import { Component, OnInit, HostListener, DestroyRef, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { MatBadgeModule } from '@angular/material/badge';
@@ -8,8 +9,8 @@ import { MatMenuModule } from '@angular/material/menu';
 import { CartService } from '../../services/cart.service';
 import { AuthService } from '../../services/auth.service';
 import { WishlistService } from '../../services/wishlist.service';
-import { CrudService } from '../../services/crud.service';
 import { BrandService } from '../../services/brand.service';
+import { CatalogService } from '../../services/catalog.service';
 import { ImageUrlPipe } from '../../pipes/image-url.pipe';
 
 @Component({
@@ -20,7 +21,7 @@ import { ImageUrlPipe } from '../../pipes/image-url.pipe';
     <nav class="luxe-nav" [class.scrolled]="scrolled">
       <div class="luxe-nav-inner">
         <a class="luxe-logo" routerLink="/" [attr.aria-label]="brand.name + ' — accueil'">
-          <img [src]="brand.logoUrl | imageUrl" [alt]="brand.name">
+          <img [src]="brand.logoUrl | imageUrl" [alt]="brand.name" width="64" height="64" decoding="async">
         </a>
 
         <div class="luxe-nav-links" [class.open]="mobileOpen">
@@ -33,7 +34,7 @@ import { ImageUrlPipe } from '../../pipes/image-url.pipe';
             <button mat-menu-item routerLink="/collection" (click)="mobileOpen = false">
               <mat-icon>grid_view</mat-icon> Tous les produits
             </button>
-            <ng-container *ngFor="let cat of navTree">
+            <ng-container *ngFor="let cat of navTree; trackBy: trackByName">
               <button mat-menu-item *ngIf="!cat.children.length" [routerLink]="['/collection']" [queryParams]="{cat: cat.name}" (click)="mobileOpen = false">
                 <mat-icon>arrow_forward_ios</mat-icon> {{ cat.name }}
               </button>
@@ -47,7 +48,7 @@ import { ImageUrlPipe } from '../../pipes/image-url.pipe';
               <button mat-menu-item [routerLink]="['/collection']" [queryParams]="{cat: cat.name}" (click)="mobileOpen = false">
                 Tout {{ cat.name }}
               </button>
-              <button mat-menu-item *ngFor="let child of cat.children" [routerLink]="['/collection']" [queryParams]="{cat: cat.name, sub: child.name}" (click)="mobileOpen = false">
+              <button mat-menu-item *ngFor="let child of cat.children; trackBy: trackByName" [routerLink]="['/collection']" [queryParams]="{cat: cat.name, sub: child.name}" (click)="mobileOpen = false">
                 {{ child.name }}
               </button>
             </ng-template>
@@ -220,6 +221,7 @@ import { ImageUrlPipe } from '../../pipes/image-url.pipe';
   `]
 })
 export class HeaderComponent implements OnInit {
+  private destroyRef = inject(DestroyRef);
   cartCount = 0;
   wishlistCount = 0;
   isLoggedIn = false;
@@ -234,32 +236,29 @@ export class HeaderComponent implements OnInit {
     private cartService: CartService,
     private authService: AuthService,
     private wishlistService: WishlistService,
-    private crudService: CrudService,
+    private catalog: CatalogService,
     public brand: BrandService,
     private router: Router
   ) {}
 
   ngOnInit() {
-    this.cartService.cartItems$.subscribe(items => {
+    this.cartService.cartItems$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(items => {
       this.cartCount = items.reduce((acc, i) => acc + i.quantity, 0);
     });
-    this.wishlistService.ids$.subscribe(ids => { this.wishlistCount = ids.length; });
+    this.wishlistService.ids$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(ids => { this.wishlistCount = ids.length; });
     this.authService.refreshMe();
-    this.authService.currentUser$.subscribe(user => {
+    this.authService.currentUser$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(user => {
       this.isLoggedIn = !!user;
       this.canAccessAdmin = this.authService.canAccessAdmin;
       this.loyaltyPoints = user?.role === 'client' ? Number(user.loyalty_points || 0) : null;
     });
-    this.crudService.getAll<any>('categories').subscribe({
-      next: categories => {
-        const visible = categories.filter((c: any) => c.name && c.name !== 'Promotions');
-        this.navTree = visible
-          .filter((c: any) => !c.parent_id)
-          .map((root: any) => ({
+    this.catalog.getMeta().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: meta => {
+        this.navTree = (meta.categories || [])
+          .filter((c) => c.name && c.name !== 'Promotions')
+          .map((root) => ({
             name: root.name,
-            children: visible
-              .filter((child: any) => child.parent_id === root.id)
-              .map((child: any) => ({ name: child.name }))
+            children: (root.children || []).map((child) => ({ name: child.name }))
           }));
       },
       error: () => { this.navTree = []; }
@@ -269,6 +268,10 @@ export class HeaderComponent implements OnInit {
   @HostListener('window:scroll', [])
   onScroll() {
     this.scrolled = window.scrollY > 10;
+  }
+
+  trackByName(_index: number, item: { name?: string }): string {
+    return item?.name || String(_index);
   }
 
   search(term: string) {

@@ -1,5 +1,6 @@
 const express = require('express');
 const { Op } = require('sequelize');
+const { escapeLikePattern } = require('../services/listQuery');
 const { auth, authorize, requirePermission } = require('../middlewares/auth');
 const AuditLog = require('../models/AuditLog');
 
@@ -15,8 +16,8 @@ router.get('/', auth, authorize('admin', 'seller'), requirePermission('audit.vie
     const q = String(req.query.q || '').trim();
     if (q) {
       where[Op.or] = [
-        { summary: { [Op.iLike]: `%${q}%` } },
-        { actor_name: { [Op.iLike]: `%${q}%` } }
+        { summary: { [Op.iLike]: `%${escapeLikePattern(q)}%` } },
+        { actor_name: { [Op.iLike]: `%${escapeLikePattern(q)}%` } }
       ];
     }
 

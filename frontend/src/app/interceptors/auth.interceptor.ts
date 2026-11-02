@@ -23,7 +23,7 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
         // logout() plutôt qu'un simple nettoyage du localStorage : il remet aussi à
         // zéro currentUser$, donc l'en-tête cesse d'afficher un utilisateur connecté.
         authService.logout();
-        router.navigate(['/login'], {
+        router.navigate(['/auth/login'], {
           queryParams: { expired: '1', redirect: router.url }
         });
       }

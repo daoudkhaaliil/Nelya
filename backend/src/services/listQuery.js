@@ -103,4 +103,4 @@ function buildListQuery(query = {}, config = {}) {
   return { where, order, limit, offset: (page - 1) * limit, page, paginated };
 }
 
-module.exports = { buildListQuery, MAX_LIMIT, DEFAULT_LIMIT };
+module.exports = { buildListQuery, escapeLikePattern, MAX_LIMIT, DEFAULT_LIMIT };

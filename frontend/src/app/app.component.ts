@@ -1,4 +1,5 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, DestroyRef, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule, ViewportScroller } from '@angular/common';
 import { RouterOutlet, Router, NavigationEnd } from '@angular/router';
 import { filter } from 'rxjs/operators';
@@ -27,12 +28,16 @@ const STANDALONE_LAYOUT_PREFIXES = ['/admin', '/auth'];
   `]
 })
 export class AppComponent implements OnInit {
+  private destroyRef = inject(DestroyRef);
   showShopChrome = true;
 
   constructor(private router: Router, private viewport: ViewportScroller) {}
 
   ngOnInit() {
-    this.router.events.pipe(filter(e => e instanceof NavigationEnd)).subscribe((e) => {
+    this.router.events.pipe(
+      filter(e => e instanceof NavigationEnd),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe((e) => {
       const url = (e as NavigationEnd).urlAfterRedirects;
       this.showShopChrome = !STANDALONE_LAYOUT_PREFIXES.some(prefix => url.startsWith(prefix));
       this.scrollToTop();

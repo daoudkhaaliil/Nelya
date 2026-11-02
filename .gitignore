@@ -26,8 +26,10 @@ node_modules/
 frontend/dist/
 frontend/.angular/cache/
 
-# Images WebP générées par les tests d'upload
+# Images WebP générées par les uploads (runtime, pas le dépôt)
 backend/src/img/product_*.webp
+backend/src/img/logo_*.webp
+backend/src/img/hero_*.webp
 
 # Logs
 *.log

@@ -6,7 +6,7 @@ import { CartService } from '../../services/cart.service';
 import { WishlistService } from '../../services/wishlist.service';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { FormsModule } from '@angular/forms';
 import { ImageUrlPipe } from '../../pipes/image-url.pipe';
@@ -16,52 +16,6 @@ import { ProductCardComponent } from '../../components/product-card/product-card
 import { SettingsService } from '../../services/settings.service';
 import { ApiService } from '../../services/api.service';
 import { AuthService } from '../../services/auth.service';
-
-@Component({
-  selector: 'app-review-dialog',
-  standalone: true,
-  imports: [CommonModule, MatDialogModule, MatButtonModule, MatIconModule, FormsModule],
-  template: `
-    <h2 mat-dialog-title class="rv-title">Laisser un avis</h2>
-    <mat-dialog-content>
-      <p class="rv-product">{{ productName }}</p>
-      <div class="rv-stars">
-        <button *ngFor="let s of [1,2,3,4,5]" class="rv-star" [class.active]="rating >= s" (click)="rating = s" [attr.aria-label]="'Note de ' + s + ' étoiles'">
-          <mat-icon>star</mat-icon>
-        </button>
-      </div>
-      <textarea class="rv-text" [(ngModel)]="comment" rows="4" placeholder="Partagez votre expérience avec ce produit..." aria-label="Votre commentaire"></textarea>
-    </mat-dialog-content>
-    <mat-dialog-actions align="end">
-      <button mat-button mat-dialog-close>Annuler</button>
-      <button mat-flat-button color="primary" [disabled]="rating === 0 || comment.trim().length < 10" (click)="submit()">Publier l'avis</button>
-    </mat-dialog-actions>
-  `,
-  styles: [`
-    .rv-title { font-family: var(--font-heading); color: var(--luxe-black); text-align: center; margin-bottom: 6px; }
-    .rv-product { text-align: center; color: var(--luxe-text-muted); margin: 0 0 20px; }
-    .rv-stars { display: flex; gap: 8px; justify-content: center; margin-bottom: 20px; }
-    .rv-star { background: none; border: none; cursor: pointer; color: var(--luxe-border); padding: 0; transition: transform 0.2s ease; }
-    .rv-star mat-icon { font-size: 34px; width: 34px; height: 34px; }
-    .rv-star.active { color: var(--luxe-gold); }
-    .rv-star:hover { transform: scale(1.15); }
-    .rv-text { width: 100%; min-width: 360px; padding: 14px; border: 1px solid var(--luxe-border); border-radius: var(--radius-md); font-family: var(--font-body); font-size: 0.9rem; resize: vertical; outline: none; }
-    .rv-text:focus { border-color: var(--luxe-gold); }
-    @media (max-width: 600px) { .rv-text { min-width: 100%; } }
-  `]
-})
-export class ReviewDialogComponent {
-  rating = 0;
-  comment = '';
-  productName = '';
-  constructor(
-    public dialogRef: MatDialogRef<ReviewDialogComponent>
-  ) {}
-
-  submit() {
-    this.dialogRef.close({ rating: this.rating, comment: this.comment });
-  }
-}
 
 @Component({
   selector: 'app-product-detail',
@@ -79,7 +33,7 @@ export class ReviewDialogComponent {
           <div class="gallery">
             <div class="gallery-main" (mousemove)="zoom($event)" (mouseleave)="zoomed = false" (click)="openLightbox()" role="img" [attr.aria-label]="'Agrandir l\\'image de ' + product.name">
               <div class="gallery-img" [ngClass]="{zoomed: zoomed}" [ngStyle]="zoomStyle">
-                <img [src]="(galleryImages[activeImage] | imageUrl)" [alt]="product.name">
+                <img [src]="(galleryImages[activeImage] | imageUrl)" [alt]="product.name" fetchpriority="high" decoding="async">
               </div>
               <div class="gallery-badge" *ngIf="product.category === 'Promotions'">PROMO</div>
               <button class="gallery-wish" [class.active]="wishlisted" (click)="$event.stopPropagation(); toggleWish()"
@@ -93,7 +47,7 @@ export class ReviewDialogComponent {
             <div class="gallery-thumbs" *ngIf="galleryImages.length > 1">
               <button *ngFor="let img of galleryImages; let i = index" class="gallery-thumb" [class.active]="i === activeImage"
                 (click)="activeImage = i" [attr.aria-label]="'Voir l\\'image ' + (i + 1)">
-                <img [src]="img | imageUrl" [alt]="'Aperçu ' + (i + 1)">
+                <img [src]="img | imageUrl" [alt]="'Aperçu ' + (i + 1)" loading="lazy" decoding="async">
               </button>
             </div>
           </div>
@@ -559,19 +513,21 @@ export class ProductDetailComponent implements OnInit {
       this.snackBar.open('Vous avez déjà publié un avis sur cet article.', 'Fermer', { duration: 3500 });
       return;
     }
-    const ref = this.dialog.open(ReviewDialogComponent, {
-      width: '520px',
-      panelClass: 'luxury-dialog'
-    });
-    ref.componentInstance.productName = this.product.name;
-    ref.afterClosed().subscribe(result => {
-      if (!result) return;
-      this.api.post('reviews', { product_id: this.product.id, rating: result.rating, comment: result.comment }).subscribe({
-        next: () => {
-          this.snackBar.open('Merci, votre avis est publié.', 'Fermer', { duration: 3500 });
-          this.loadReviews();
-        },
-        error: (err) => this.snackBar.open(err?.error?.message || 'Impossible de publier l’avis', 'Fermer', { duration: 4000 })
+    void import('../review-dialog.component').then(({ ReviewDialogComponent }) => {
+      const ref = this.dialog.open(ReviewDialogComponent, {
+        width: '520px',
+        panelClass: 'luxury-dialog'
+      });
+      ref.componentInstance.productName = this.product.name;
+      ref.afterClosed().subscribe(result => {
+        if (!result) return;
+        this.api.post('reviews', { product_id: this.product.id, rating: result.rating, comment: result.comment }).subscribe({
+          next: () => {
+            this.snackBar.open('Merci, votre avis est publié.', 'Fermer', { duration: 3500 });
+            this.loadReviews();
+          },
+          error: (err) => this.snackBar.open(err?.error?.message || 'Impossible de publier l’avis', 'Fermer', { duration: 4000 })
+        });
       });
     });
   }

@@ -19,7 +19,7 @@ const ALLOWED_INPUT_FORMATS = ['jpeg', 'png', 'webp', 'gif', 'avif', 'tiff'];
 const MAX_WIDTH = 1400;
 const MAX_HEIGHT = 1400;
 const WEBP_QUALITY = 80;
-const MAX_INPUT_BYTES = 10 * 1024 * 1024;
+const MAX_INPUT_BYTES = 25 * 1024 * 1024;
 
 // En mémoire : le fichier n'est jamais écrit sous le nom fourni par le client, et
 // seul le résultat ré-encodé par sharp atteint le disque.
@@ -60,7 +60,7 @@ router.post('/', auth, authorize('admin', 'seller'), (req, res, next) => {
   upload.single('image')(req, res, async (err) => {
     if (err) {
       const message = err.code === 'LIMIT_FILE_SIZE'
-        ? "L'image est trop volumineuse (10 Mo max)"
+        ? "L'image est trop volumineuse (25 Mo max). Compressez-la ou choisissez un fichier plus léger."
         : err.message;
       return res.status(400).json({ message });
     }

@@ -1,4 +1,4 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
@@ -15,9 +15,9 @@ import { SettingsService } from '../../services/settings.service';
   imports: [CommonModule, RouterLink, MatIconModule, MatSnackBarModule, ImageUrlPipe, FormatCurrencyPipe],
   template: `
     <div class="pcard" [routerLink]="['/products', product.id]">
-      <div class="pcard-media">
-        <img [src]="product.image_url | imageUrl" [alt]="product.name" loading="lazy">
-        <img *ngIf="secondImage" class="pcard-alt" [src]="secondImage | imageUrl" [alt]="product.name" loading="lazy">
+      <div class="pcard-media" (mouseenter)="loadAlt()">
+        <img [src]="product.image_url | imageUrl" [alt]="product.name" loading="lazy" decoding="async">
+        <img *ngIf="altLoaded && secondImage" class="pcard-alt" [src]="secondImage | imageUrl" [alt]="product.name" decoding="async">
         <div class="pcard-badge" *ngIf="product.category === 'Promotions'">PROMO</div>
         <button class="pcard-wish" [class.active]="wishlisted"
           (click)="$event.stopPropagation(); toggleWish()"
@@ -109,9 +109,10 @@ import { SettingsService } from '../../services/settings.service';
     }
   `]
 })
-export class ProductCardComponent {
+export class ProductCardComponent implements OnInit {
   @Input() product: any;
   wishlisted = false;
+  altLoaded = false;
 
   constructor(
     private cartService: CartService,
@@ -132,6 +133,10 @@ export class ProductCardComponent {
 
   ngOnInit() {
     this.wishlisted = this.wishlistService.isWishlisted(this.product.id);
+  }
+
+  loadAlt() {
+    if (this.secondImage) this.altLoaded = true;
   }
 
   addToCart() {

@@ -22,7 +22,7 @@ import { ImageUrlPipe } from '../../pipes/image-url.pipe';
       <div class="luxe-footer-grid">
         <div class="luxe-footer-brand">
           <div class="luxe-logo">
-            <img [src]="brand.logoFullUrl | imageUrl" [alt]="brand.name">
+            <img [src]="brand.logoUrl | imageUrl" [alt]="brand.name" loading="lazy" decoding="async" width="120" height="120">
           </div>
           <p>{{ brand.copy.footerBlurb }}</p>
           <div class="luxe-socials">

@@ -8,6 +8,7 @@ import { BrandService, ClientConfig } from '../../services/brand.service';
 import { DEFAULT_HERO_IMAGE, SettingsService } from '../../services/settings.service';
 import { ApiService } from '../../services/api.service';
 import { ImageUrlPipe } from '../../pipes/image-url.pipe';
+import { compressImageFile, imageUploadErrorMessage } from '../../utils/image-compress';
 
 @Component({
   selector: 'app-identity-manager',
@@ -45,11 +46,12 @@ import { ImageUrlPipe } from '../../pipes/image-url.pipe';
           <div class="hero-preview">
             <img *ngIf="heroImage" [src]="heroImage | imageUrl" alt="Aperçu du bandeau">
           </div>
-          <input #heroInput type="file" accept="image/*" hidden (change)="onHeroFile($event)">
           <div class="hero-actions">
-            <button type="button" mat-stroked-button [disabled]="uploadingHero" (click)="heroInput.click()">
-              <mat-icon>upload</mat-icon> {{ uploadingHero ? 'Envoi…' : 'Choisir une image' }}
-            </button>
+            <label class="pick-file" [class.busy]="uploadingHero">
+              <input type="file" accept="image/*" [disabled]="uploadingHero" (change)="onHeroFile($event)">
+              <mat-icon>upload</mat-icon>
+              {{ uploadingHero ? 'Compression…' : 'Choisir une image' }}
+            </label>
             <button type="button" mat-button [disabled]="savingHero || heroImage === defaultHero" (click)="resetHero()">
               Image par défaut
             </button>
@@ -81,20 +83,22 @@ import { ImageUrlPipe } from '../../pipes/image-url.pipe';
           <div class="logo-row">
             <img *ngIf="form.brand.logo" [src]="form.brand.logo | imageUrl" alt="Logo menu" class="logo-preview round">
             <div>
-              <input #logoInput type="file" accept="image/*" hidden (change)="onImage($event, 'logo')">
-              <button type="button" mat-stroked-button [disabled]="uploading" (click)="logoInput.click()">
-                <mat-icon>upload</mat-icon> {{ uploading === 'logo' ? 'Envoi…' : 'Logo du menu' }}
-              </button>
-              <p class="hint">Médaillon rond : header et admin. PNG carré de préférence.</p>
+              <label class="pick-file" [class.busy]="!!uploading">
+                <input type="file" accept="image/*" [disabled]="!!uploading" (change)="onImage($event, 'logo')">
+                <mat-icon>upload</mat-icon>
+                {{ uploading === 'logo' ? 'Compression…' : 'Logo du menu' }}
+              </label>
+              <p class="hint">Médaillon rond : header et admin. PNG carré de préférence. Les fichiers lourds sont compressés en WebP avant l’envoi.</p>
             </div>
           </div>
           <div class="logo-row">
             <img *ngIf="form.brand.logoFull" [src]="form.brand.logoFull | imageUrl" alt="Logo complet" class="logo-preview">
             <div>
-              <input #logoFullInput type="file" accept="image/*" hidden (change)="onImage($event, 'logoFull')">
-              <button type="button" mat-stroked-button [disabled]="uploading" (click)="logoFullInput.click()">
-                <mat-icon>upload</mat-icon> {{ uploading === 'logoFull' ? 'Envoi…' : 'Logo complet' }}
-              </button>
+              <label class="pick-file" [class.busy]="!!uploading">
+                <input type="file" accept="image/*" [disabled]="!!uploading" (change)="onImage($event, 'logoFull')">
+                <mat-icon>upload</mat-icon>
+                {{ uploading === 'logoFull' ? 'Compression…' : 'Logo complet' }}
+              </label>
               <p class="hint">Version avec slogan : pied de page et pages connexion.</p>
             </div>
           </div>
@@ -252,10 +256,11 @@ import { ImageUrlPipe } from '../../pipes/image-url.pipe';
           <div class="logo-row">
             <img *ngIf="form.copy.atelierImage" [src]="form.copy.atelierImage | imageUrl" alt="Atelier" class="atelier-preview">
             <div>
-              <input #atelierInput type="file" accept="image/*" hidden (change)="onImage($event, 'atelier')">
-              <button type="button" mat-stroked-button [disabled]="uploading" (click)="atelierInput.click()">
-                <mat-icon>photo</mat-icon> {{ uploading === 'atelier' ? 'Envoi…' : 'Image atelier' }}
-              </button>
+              <label class="pick-file" [class.busy]="!!uploading">
+                <input type="file" accept="image/*" [disabled]="!!uploading" (change)="onImage($event, 'atelier')">
+                <mat-icon>photo</mat-icon>
+                {{ uploading === 'atelier' ? 'Compression…' : 'Image atelier' }}
+              </label>
             </div>
           </div>
         </section>
@@ -349,7 +354,51 @@ import { ImageUrlPipe } from '../../pipes/image-url.pipe';
       border: 1px solid var(--luxe-border);
     }
     .hero-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
-    .hero-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+    .hero-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    .pick-file {
+      position: relative;
+      display: inline-flex !important;
+      flex-direction: row !important;
+      align-items: center;
+      gap: 8px;
+      margin: 0;
+      cursor: pointer;
+      padding: 10px 22px;
+      border: 1px solid var(--luxe-border-strong);
+      border-radius: 999px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      font-size: 0.78rem;
+      font-weight: 500;
+      color: var(--luxe-charcoal);
+      background: #fff;
+      overflow: hidden;
+      user-select: none;
+    }
+    .pick-file:hover {
+      border-color: var(--luxe-black);
+      background: var(--luxe-black);
+      color: var(--luxe-white);
+    }
+    .pick-file.busy {
+      opacity: 0.55;
+      pointer-events: none;
+      cursor: not-allowed;
+    }
+    .pick-file input[type="file"] {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      opacity: 0;
+      cursor: pointer;
+      background: transparent;
+      font-size: 100px;
+    }
+    .pick-file mat-icon { font-size: 18px; width: 18px; height: 18px; }
     .logo-row { display: flex; gap: 16px; align-items: center; margin-top: 16px; }
     .logo-preview { width: 88px; height: 88px; object-fit: contain; border-radius: 12px; border: 1px solid var(--luxe-border); background: #f7f4ec; }
     .logo-preview.round { width: 64px; height: 64px; object-fit: cover; border-radius: 50%; }
@@ -399,56 +448,69 @@ export class IdentityManagerComponent implements OnInit {
     this.form.colors.primaryHover = darken(this.form.colors.primary, 0.82);
   }
 
-  onImage(event: Event, kind: 'logo' | 'logoFull' | 'atelier') {
+  async onImage(event: Event, kind: 'logo' | 'logoFull' | 'atelier') {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
-    if (!file || !this.form) return;
-    const data = new FormData();
-    data.append('image', file);
-    data.append('purpose', kind === 'atelier' ? 'product' : kind === 'logoFull' ? 'lockup' : 'logo');
-    this.uploading = kind;
-    this.api.post<{ url: string }>('uploads', data).subscribe({
-      next: (res) => {
-        this.uploading = '';
-        if (kind === 'logo') this.form!.brand.logo = res.url;
-        else if (kind === 'logoFull') this.form!.brand.logoFull = res.url;
-        else this.form!.copy.atelierImage = res.url;
-        this.snackBar.open('Image envoyée', 'OK', { duration: 2200 });
-      },
-      error: (err) => {
-        this.uploading = '';
-        this.snackBar.open(err?.error?.message || 'Envoi impossible', 'Fermer', { duration: 4000 });
-      }
-    });
     input.value = '';
+    if (!file || !this.form) return;
+    const purpose = kind === 'atelier' ? 'product' : kind === 'logoFull' ? 'lockup' : 'logo';
+    this.uploading = kind;
+    try {
+      const compressed = await compressImageFile(file, purpose);
+      const data = new FormData();
+      data.append('image', compressed);
+      data.append('purpose', purpose);
+      this.api.post<{ url: string }>('uploads', data).subscribe({
+        next: (res) => {
+          this.uploading = '';
+          if (kind === 'logo') this.form!.brand.logo = res.url;
+          else if (kind === 'logoFull') this.form!.brand.logoFull = res.url;
+          else this.form!.copy.atelierImage = res.url;
+          this.snackBar.open('Image compressée et envoyée', 'OK', { duration: 2200 });
+        },
+        error: (err) => {
+          this.uploading = '';
+          this.snackBar.open(imageUploadErrorMessage(err), 'Fermer', { duration: 5000 });
+        }
+      });
+    } catch (err) {
+      this.uploading = '';
+      this.snackBar.open(imageUploadErrorMessage(err), 'Fermer', { duration: 5000 });
+    }
   }
 
-  onHeroFile(event: Event) {
+  async onHeroFile(event: Event) {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
-    if (!file) return;
-    const formData = new FormData();
-    formData.append('image', file);
-    formData.append('purpose', 'hero');
-    this.uploadingHero = true;
-    this.api.post<{ url: string }>('uploads', formData).subscribe({
-      next: (res) => {
-        this.uploadingHero = false;
-        this.savingHero = true;
-        this.settings.save({ heroImage: res.url }).then(() => {
-          this.savingHero = false;
-          this.snackBar.open('Bandeau d’accueil enregistré', 'OK', { duration: 3000 });
-        }).catch((err) => {
-          this.savingHero = false;
-          this.snackBar.open(err?.error?.message || 'Enregistrement impossible', 'Fermer', { duration: 4000 });
-        });
-      },
-      error: (err) => {
-        this.uploadingHero = false;
-        this.snackBar.open(err?.error?.message || 'Envoi impossible', 'Fermer', { duration: 4000 });
-      }
-    });
     input.value = '';
+    if (!file) return;
+    this.uploadingHero = true;
+    try {
+      const compressed = await compressImageFile(file, 'hero');
+      const formData = new FormData();
+      formData.append('image', compressed);
+      formData.append('purpose', 'hero');
+      this.api.post<{ url: string }>('uploads', formData).subscribe({
+        next: (res) => {
+          this.uploadingHero = false;
+          this.savingHero = true;
+          this.settings.save({ heroImage: res.url }).then(() => {
+            this.savingHero = false;
+            this.snackBar.open('Bandeau d’accueil compressé et enregistré', 'OK', { duration: 3000 });
+          }).catch((err) => {
+            this.savingHero = false;
+            this.snackBar.open(imageUploadErrorMessage(err), 'Fermer', { duration: 5000 });
+          });
+        },
+        error: (err) => {
+          this.uploadingHero = false;
+          this.snackBar.open(imageUploadErrorMessage(err), 'Fermer', { duration: 5000 });
+        }
+      });
+    } catch (err) {
+      this.uploadingHero = false;
+      this.snackBar.open(imageUploadErrorMessage(err), 'Fermer', { duration: 5000 });
+    }
   }
 
   resetHero() {

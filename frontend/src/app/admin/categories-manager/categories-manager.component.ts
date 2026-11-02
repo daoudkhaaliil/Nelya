@@ -12,6 +12,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { ConfirmService } from '../../services/confirm.service';
 import { childrenOf, isRootCategory } from '../../services/catalog.types';
+import { CatalogService } from '../../services/catalog.service';
 
 @Component({
   selector: 'app-categories-manager',
@@ -149,7 +150,8 @@ export class CategoriesManagerComponent implements OnInit {
     private crud: CrudService,
     private snackBar: MatSnackBar,
     private fb: FormBuilder,
-    private confirm: ConfirmService
+    private confirm: ConfirmService,
+    private catalog: CatalogService
   ) {}
 
   ngOnInit() {
@@ -236,6 +238,7 @@ export class CategoriesManagerComponent implements OnInit {
       this.crud.update('categories', this.editingCategoryId, payload).subscribe({
         next: () => {
           this.snackBar.open('Catégorie mise à jour avec succès', 'OK', { duration: 3000 });
+          this.catalog.invalidate();
           this.loadCategories();
           this.toggleForm();
         },
@@ -248,6 +251,7 @@ export class CategoriesManagerComponent implements OnInit {
       this.crud.create('categories', payload).subscribe({
         next: () => {
           this.snackBar.open('Catégorie créée avec succès', 'OK', { duration: 3000 });
+          this.catalog.invalidate();
           this.loadCategories();
           this.toggleForm();
         },
@@ -277,6 +281,7 @@ export class CategoriesManagerComponent implements OnInit {
     this.crud.delete('categories', category.id).subscribe({
       next: () => {
         this.snackBar.open('Catégorie supprimée', 'OK', { duration: 3000 });
+        this.catalog.invalidate();
         this.loadCategories();
       },
       error: () => this.snackBar.open('Erreur lors de la suppression de la catégorie', 'Fermer', { duration: 4000 })

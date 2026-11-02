@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, Observable, tap } from 'rxjs';
+import { BehaviorSubject, Observable, tap, shareReplay, finalize, firstValueFrom } from 'rxjs';
 import { API_BASE_URL } from '../config';
 
 export interface User {
@@ -52,17 +52,18 @@ export class AuthService {
     this.currentUserSubject.next(null);
   }
 
+  private meInFlight$: Observable<User> | null = null;
+
   refreshMe(): Promise<User | null> {
     if (!this.isLoggedIn) return Promise.resolve(null);
-    return new Promise(resolve => {
-      this.http.get<User>(`${this.apiUrl}/me`).subscribe({
-        next: user => {
-          this.patchCurrentUser(user);
-          resolve(user);
-        },
-        error: () => resolve(this.currentUserSubject.value)
-      });
-    });
+    if (!this.meInFlight$) {
+      this.meInFlight$ = this.http.get<User>(`${this.apiUrl}/me`).pipe(
+        tap(user => this.patchCurrentUser(user)),
+        finalize(() => { this.meInFlight$ = null; }),
+        shareReplay({ bufferSize: 1, refCount: true })
+      );
+    }
+    return firstValueFrom(this.meInFlight$).catch(() => this.currentUserSubject.value);
   }
 
   patchCurrentUser(partial: Partial<User> | User) {

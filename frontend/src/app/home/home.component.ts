@@ -1,4 +1,5 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -9,11 +10,11 @@ import { CrudService } from '../services/crud.service';
 import { SettingsService, DEFAULT_HERO_IMAGE } from '../services/settings.service';
 import { BrandService } from '../services/brand.service';
 import { CategoryCount } from '../services/catalog.types';
+import { CatalogService } from '../services/catalog.service';
 import { ProductCardComponent } from '../components/product-card/product-card.component';
 import { ImageUrlPipe } from '../pipes/image-url.pipe';
 import { ApiService } from '../services/api.service';
 import { AuthService } from '../services/auth.service';
-import { ReviewDialogComponent } from '../products/product-detail/product-detail.component';
 
 @Component({
   selector: 'app-home',
@@ -24,7 +25,7 @@ import { ReviewDialogComponent } from '../products/product-detail/product-detail
       <!-- HERO -->
       <section class="luxe-hero">
         <div class="luxe-hero-media">
-          <img [src]="heroImage | imageUrl" [alt]="brand.copy.heroSubtitle || brand.name">
+          <img [src]="heroImage | imageUrl" [alt]="brand.copy.heroSubtitle || brand.name" fetchpriority="high" decoding="async" width="1200" height="750">
         </div>
         <div class="luxe-hero-overlay"></div>
         <div class="luxe-hero-content">
@@ -74,8 +75,8 @@ import { ReviewDialogComponent } from '../products/product-detail/product-detail
           <div class="luxe-sec-line"></div>
         </div>
         <div class="luxe-cat-grid stagger" *ngIf="categories.length">
-          <a class="luxe-cat-tile" *ngFor="let cat of categories" [routerLink]="['/collection']" [queryParams]="{cat: cat.name}">
-            <img [src]="cat.image | imageUrl" [alt]="cat.name" loading="lazy">
+          <a class="luxe-cat-tile" *ngFor="let cat of categories; trackBy: trackByName" [routerLink]="['/collection']" [queryParams]="{cat: cat.name}">
+            <img [src]="cat.image | imageUrl" [alt]="cat.name" loading="lazy" decoding="async">
             <div class="luxe-cat-shade"></div>
             <div class="luxe-cat-info">
               <span class="luxe-cat-name">{{ cat.name }}</span>
@@ -94,7 +95,7 @@ import { ReviewDialogComponent } from '../products/product-detail/product-detail
             <div class="luxe-sec-line"></div>
           </div>
           <div class="luxe-prod-grid stagger">
-            <app-product-card *ngFor="let product of products" [product]="product"></app-product-card>
+            <app-product-card *ngFor="let product of products; trackBy: trackById" [product]="product"></app-product-card>
           </div>
           <div class="luxe-see-all">
             <button mat-stroked-button routerLink="/collection">VOIR TOUTE LA COLLECTION</button>
@@ -106,7 +107,7 @@ import { ReviewDialogComponent } from '../products/product-detail/product-detail
       <section class="luxe-atelier">
         <div class="luxe-atelier-grid">
           <div class="luxe-atelier-media">
-            <img [src]="(brand.copy.atelierImage || '/img/huile.jpg') | imageUrl" [alt]="brand.copy.atelierTitle">
+            <img [src]="(brand.copy.atelierImage || '/img/huile.jpg') | imageUrl" [alt]="brand.copy.atelierTitle" loading="lazy" decoding="async">
           </div>
           <div class="luxe-atelier-body">
             <span class="luxe-sec-eyebrow">{{ brand.copy.atelierEyebrow }}</span>
@@ -130,7 +131,7 @@ import { ReviewDialogComponent } from '../products/product-detail/product-detail
           </div>
 
           <div class="voices-grid">
-            <article class="voice-card" *ngFor="let r of displayReviews">
+            <article class="voice-card" *ngFor="let r of displayReviews; trackBy: trackByReview">
               <div class="luxe-stars">
                 <mat-icon *ngFor="let s of [1,2,3,4,5]">{{ s <= r.rating ? 'star' : 'star_border' }}</mat-icon>
               </div>
@@ -317,6 +318,7 @@ import { ReviewDialogComponent } from '../products/product-detail/product-detail
   `]
 })
 export class HomeComponent implements OnInit {
+  private destroyRef = inject(DestroyRef);
   products: any[] = [];
   categories: any[] = [];
   heroImage = DEFAULT_HERO_IMAGE;
@@ -338,6 +340,7 @@ export class HomeComponent implements OnInit {
 
   constructor(
     private crud: CrudService,
+    private catalog: CatalogService,
     private snackBar: MatSnackBar,
     public brand: BrandService,
     private settings: SettingsService,
@@ -349,17 +352,17 @@ export class HomeComponent implements OnInit {
 
   ngOnInit() {
     this.heroImage = this.settings.heroImage;
-    this.settings.heroImage$.subscribe((url) => { this.heroImage = url; });
+    this.settings.heroImage$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((url) => { this.heroImage = url; });
 
-    // Huit produits, pas le catalogue : la page d'accueil n'en affiche pas plus.
-    this.crud.getPage<any>('products', { limit: 8, sort: 'newest:desc' }).subscribe({
-      next: page => { this.products = page.data; },
-      error: () => {}
-    });
+    this.crud.getPage<any>('products', { limit: 8, sort: 'newest:desc' })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: page => { this.products = page.data; },
+        error: () => {}
+      });
 
-    // Les vignettes de catégories viennent des agrégats, calculés côté serveur.
-    this.crud.getAll<CategoryCount>('products/meta').subscribe({
-      next: (meta: any) => {
+    this.catalog.getMeta().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (meta) => {
         this.categories = (meta.categories || [])
           .filter((c: CategoryCount) => c.name !== 'Promotions')
           .slice(0, 4);
@@ -380,31 +383,42 @@ export class HomeComponent implements OnInit {
       this.snackBar.open('Vous avez déjà publié un témoignage.', 'Fermer', { duration: 3500 });
       return;
     }
-    const ref = this.dialog.open(ReviewDialogComponent, { width: '520px', panelClass: 'luxury-dialog' });
-    ref.componentInstance.productName = 'Votre témoignage Nelya';
-    ref.afterClosed().subscribe((result) => {
-      if (!result) return;
-      this.api.post('reviews', { rating: result.rating, comment: result.comment }).subscribe({
-        next: () => {
-          this.snackBar.open('Merci, votre témoignage est publié.', 'Fermer', { duration: 3500 });
-          this.loadReviews();
-        },
-        error: (err) => this.snackBar.open(err?.error?.message || 'Impossible de publier le témoignage', 'Fermer', { duration: 4000 })
+    void import('../products/review-dialog.component').then(({ ReviewDialogComponent }) => {
+      const ref = this.dialog.open(ReviewDialogComponent, { width: '520px', panelClass: 'luxury-dialog' });
+      ref.componentInstance.productName = 'Votre témoignage Nelya';
+      ref.afterClosed().subscribe((result) => {
+        if (!result) return;
+        this.api.post('reviews', { rating: result.rating, comment: result.comment }).subscribe({
+          next: () => {
+            this.snackBar.open('Merci, votre témoignage est publié.', 'Fermer', { duration: 3500 });
+            this.loadReviews();
+          },
+          error: (err) => this.snackBar.open(err?.error?.message || 'Impossible de publier le témoignage', 'Fermer', { duration: 4000 })
+        });
       });
     });
   }
 
+  trackById(_index: number, item: { id?: string }): string {
+    return item?.id || String(_index);
+  }
+
+  trackByName(_index: number, item: { name?: string }): string {
+    return item?.name || String(_index);
+  }
+
+  trackByReview(_index: number, item: { id?: string; author?: string }): string {
+    return item?.id || item?.author || String(_index);
+  }
+
   private loadReviews() {
-    this.api.get<any>('reviews', { limit: 12 }).subscribe({
+    this.api.get<any>('reviews', { limit: 12 }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (page) => {
         this.homeReviews = page.data || [];
         this.reviewCount = Number(page.count || 0);
         this.reviewAverage = Number(page.average || 0);
+        this.shopReviewDone = Boolean(page.shopMine);
       },
-      error: () => {}
-    });
-    this.api.get<any>('reviews', { shop: '1', limit: 1 }).subscribe({
-      next: (page) => { this.shopReviewDone = Boolean(page.mine); },
       error: () => {}
     });
   }

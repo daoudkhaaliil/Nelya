@@ -80,7 +80,7 @@ router.patch('/:id/stock', auth, authorize('admin', 'seller'), requirePermission
       entityId: updated.id,
       summary: `a ajusté le stock de « ${updated.name} » à ${updated.stock}`
     });
-    res.json(updated);
+    res.json({ id: updated.id, name: updated.name, stock: updated.stock });
   } catch (error) {
     return res.status(400).json({ message: error.message || 'Impossible de mettre à jour le stock' });
   }

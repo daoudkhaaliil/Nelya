@@ -325,7 +325,7 @@ router.get('/', auth, async (req, res, next) => {
     };
 
     if (!paginated) {
-      const orders = await Order.findAll(listOptions);
+      const orders = await Order.findAll({ ...listOptions, limit: 200 });
       return res.json(orders.map(withParsedExtra));
     }
 

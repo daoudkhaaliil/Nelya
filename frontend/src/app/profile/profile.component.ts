@@ -1,4 +1,6 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, DestroyRef, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { distinctUntilChanged } from 'rxjs';
 import { CommonModule, DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { AuthService, User } from '../services/auth.service';
@@ -267,9 +269,13 @@ export class ProfileComponent implements OnInit {
     return created ? new Date(created).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) : '—';
   }
 
+  private destroyRef = inject(DestroyRef);
+
   ngOnInit() {
-    this.authService.refreshMe();
-    this.authService.currentUser$.subscribe(user => {
+    this.authService.currentUser$.pipe(
+      distinctUntilChanged((a, b) => a?.id === b?.id),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(user => {
       this.user = user;
       if (user) {
         this.editData = { ...user };

@@ -18,6 +18,7 @@ import { ImageUrlPipe } from '../../pipes/image-url.pipe';
 import { FormatCurrencyPipe } from '../../pipes/format-currency.pipe';
 import { PaginationComponent } from '../../components/pagination/pagination.component';
 import { ConfirmService } from '../../services/confirm.service';
+import { compressImageFile, imageUploadErrorMessage } from '../../utils/image-compress';
 
 interface StockSummary {
   skuCount: number;
@@ -639,33 +640,38 @@ export class ProductsManagerComponent implements OnInit, OnDestroy {
     this.uploadNext(queue, 0);
   }
 
-  private uploadNext(files: File[], index: number) {
+  private async uploadNext(files: File[], index: number) {
     if (index >= files.length) {
       this.uploading = false;
       this.snackBar.open(
-        files.length > 1 ? `${files.length} photos ajoutées` : 'Photo ajoutée',
+        files.length > 1 ? `${files.length} photos compressées et ajoutées` : 'Photo compressée et ajoutée',
         'OK',
         { duration: 2500 }
       );
       return;
     }
-    const formData = new FormData();
-    formData.append('image', files[index]);
     this.uploading = true;
-    this.api.post<{ url: string }>('uploads', formData).subscribe({
-      next: (res) => {
-        if (res?.url && !this.galleryImages.includes(res.url)) {
-          this.galleryImages = [...this.galleryImages, res.url];
-          this.syncCover();
+    try {
+      const compressed = await compressImageFile(files[index], 'product');
+      const formData = new FormData();
+      formData.append('image', compressed);
+      this.api.post<{ url: string }>('uploads', formData).subscribe({
+        next: (res) => {
+          if (res?.url && !this.galleryImages.includes(res.url)) {
+            this.galleryImages = [...this.galleryImages, res.url];
+            this.syncCover();
+          }
+          this.uploadNext(files, index + 1);
+        },
+        error: (err) => {
+          this.uploading = false;
+          this.snackBar.open(imageUploadErrorMessage(err), 'Fermer', { duration: 5000 });
         }
-        this.uploadNext(files, index + 1);
-      },
-      error: (err) => {
-        this.uploading = false;
-        const msg = err?.error?.message || "Erreur lors de l'envoi de l'image";
-        this.snackBar.open(msg, 'Fermer', { duration: 4000 });
-      }
-    });
+      });
+    } catch (err) {
+      this.uploading = false;
+      this.snackBar.open(imageUploadErrorMessage(err), 'Fermer', { duration: 5000 });
+    }
   }
 
   loadProducts() {

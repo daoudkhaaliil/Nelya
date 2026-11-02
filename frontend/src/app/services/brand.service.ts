@@ -65,7 +65,7 @@ export const DEFAULT_IDENTITY: ClientConfig = {
     nameAccent: '',
     legalName: 'Nelya',
     logo: 'assets/images/nelya-mark.png',
-    logoFull: 'assets/images/nelya.png'
+    logoFull: 'assets/images/nelya.webp'
   },
   colors: {
     primary: '#c6a04a',

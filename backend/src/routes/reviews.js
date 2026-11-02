@@ -99,17 +99,26 @@ router.get('/', optionalAuth, async (req, res, next) => {
     });
 
     let mine = false;
+    let shopMine = false;
     if (req.user) {
       const mineWhere = { user_id: req.user.id };
       if (where.product_id !== undefined) mineWhere.product_id = where.product_id;
-      mine = Boolean(await Review.findOne({ where: mineWhere, attributes: ['id'] }));
+      const [mineRow, shopRow] = await Promise.all([
+        Review.findOne({ where: mineWhere, attributes: ['id'] }),
+        where.product_id === undefined
+          ? Review.findOne({ where: { user_id: req.user.id, product_id: null }, attributes: ['id'] })
+          : Promise.resolve(null)
+      ]);
+      mine = Boolean(mineRow);
+      shopMine = Boolean(shopRow);
     }
 
     res.json({
       data: rows.map(toPublic),
       count: Number(stats?.count || 0),
       average: Number(Number(stats?.average || 0).toFixed(1)),
-      mine
+      mine,
+      shopMine
     });
   } catch (err) {
     next(err);

@@ -51,9 +51,9 @@ export interface StoreSettings {
 }
 
 export const DEFAULT_HERO_IMAGE =
-  'https://images.unsplash.com/photo-1612817288484-6f916006741a?auto=format&fit=crop&q=80&w=2000';
+  'https://images.unsplash.com/photo-1612817288484-6f916006741a?auto=format&fit=crop&q=75&w=1200';
 export const DEFAULT_LOGO = 'assets/images/nelya-mark.png';
-export const DEFAULT_LOGO_FULL = 'assets/images/nelya.png';
+export const DEFAULT_LOGO_FULL = 'assets/images/nelya.webp';
 export const DEFAULT_TAGLINE =
   "L'excellence de la cosmétique naturelle tunisienne. Des soins formulés avec passion pour révéler votre beauté intérieure.";
 

@@ -8,6 +8,7 @@ import { MatSliderModule } from '@angular/material/slider';
 import { FormsModule } from '@angular/forms';
 import { CrudService } from '../../services/crud.service';
 import { CategoryCount } from '../../services/catalog.types';
+import { CatalogService } from '../../services/catalog.service';
 
 // Correspondance entre les valeurs du menu de tri et le paramètre attendu par l'API.
 const SORT_PARAMS: Record<string, string> = {
@@ -283,6 +284,7 @@ export class CollectionComponent implements OnInit, OnDestroy {
     private route: ActivatedRoute,
     private router: Router,
     private crud: CrudService,
+    private catalog: CatalogService,
     public brand: BrandService
   ) {}
 
@@ -372,11 +374,10 @@ export class CollectionComponent implements OnInit, OnDestroy {
 
   /** Bornes du curseur de prix et catégories réellement présentes au catalogue. */
   private loadMeta() {
-    this.crud.getAll<any>('products/meta').subscribe({
-      next: (meta: any) => {
+    this.catalog.getMeta().subscribe({
+      next: (meta) => {
         this.categories = meta.categories || [];
         this.priceMax = Math.max(10, Math.ceil(Number(meta.maxPrice || 0) / 10) * 10);
-        // Ne pas écraser un plafond déjà choisi par la cliente.
         if (this.maxPriceDisplay >= this.priceMax || this.maxPriceDisplay === 200) {
           this.maxPriceDisplay = this.priceMax;
         }

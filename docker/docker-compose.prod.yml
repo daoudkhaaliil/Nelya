@@ -66,7 +66,9 @@ services:
       dockerfile: Dockerfile.prod
     container_name: nelya_frontend_prod
     restart: always
-    # ✅ PAS DE PORT EXPOSÉ - Accessible via Reverse Proxy uniquement
+    environment:
+      - PORT=80
+      - BACKEND_URL=http://backend:3000
     expose:
       - "80"
     depends_on:
@@ -74,7 +76,7 @@ services:
     networks:
       - nelya_network
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80"]
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
       interval: 30s
       timeout: 10s
       retries: 3

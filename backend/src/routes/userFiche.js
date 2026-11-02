@@ -23,7 +23,8 @@ router.get('/:id/fiche', auth, authorize('admin'), async (req, res, next) => {
         attributes: { exclude: ['cost_price'] },
         include: [{ model: Product, attributes: ['id', 'name', 'image_url'] }]
       }],
-      order: [['createdAt', 'DESC']]
+      order: [['createdAt', 'DESC']],
+      limit: 50
     });
 
     const reviews = await Review.findAll({
