@@ -135,8 +135,7 @@ function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality?: number)
 }
 
 async function encodeCanvas(canvas: HTMLCanvasElement, quality: number, keepAlpha: boolean): Promise<Blob> {
-  const webp = await canvasToBlob(canvas, 'image/webp', quality);
-  if (webp.size > 0 && webp.type === 'image/webp') return webp;
+  // PNG/JPEG : le WebP canvas est souvent rejeté par Sharp sur Railway (POST /uploads 500).
   if (keepAlpha) return canvasToBlob(canvas, 'image/png');
   return canvasToBlob(canvas, 'image/jpeg', quality);
 }

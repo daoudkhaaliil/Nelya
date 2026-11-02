@@ -34,7 +34,7 @@ const upload = multer({
  * contenu, là où l'extension du nom de fichier ne prouvait rien.
  */
 async function compressToWebp(buffer, { maxWidth = MAX_WIDTH, maxHeight = MAX_HEIGHT } = {}) {
-  const image = sharp(buffer, { animated: true, failOn: 'error' });
+  const image = sharp(buffer, { animated: false, failOn: 'none' });
   const metadata = await image.metadata();
 
   if (!ALLOWED_INPUT_FORMATS.includes(metadata.format)) {
@@ -78,6 +78,7 @@ router.post('/', auth, authorize('admin', 'seller'), (req, res, next) => {
       });
       const filename = `${isHero ? 'hero' : isLogo ? 'logo' : 'product'}_${Date.now()}_${Math.round(Math.random() * 1e9)}.webp`;
 
+      await fs.promises.mkdir(uploadDir, { recursive: true });
       await fs.promises.writeFile(path.join(uploadDir, filename), buffer);
 
       return res.status(201).json({
@@ -93,14 +94,19 @@ router.post('/', auth, authorize('admin', 'seller'), (req, res, next) => {
         sourceFormat: source.format
       });
     } catch (error) {
+      console.error('[uploads]', error?.message || error);
       if (error.status === 400) {
         return res.status(400).json({ message: error.message });
       }
-      // sharp lève sur un fichier corrompu ou qui n'est pas une image.
-      if (/unsupported image format|Input buffer/i.test(error.message || '')) {
-        return res.status(400).json({ message: "Le fichier envoyé n'est pas une image valide" });
+      if (/unsupported image format|Input buffer|VipsWebp|VipsJpeg|corrupt/i.test(error.message || '')) {
+        return res.status(400).json({ message: "Le fichier envoyé n'est pas une image valide. Utilisez un PNG ou JPEG." });
       }
-      return next(error);
+      if (error.code === 'ENOSPC' || error.code === 'EACCES' || error.code === 'ENOENT') {
+        return res.status(500).json({ message: "Impossible d'enregistrer l'image sur le serveur." });
+      }
+      return res.status(500).json({
+        message: "L'image n'a pas pu être traitée. Réessayez avec un PNG ou un JPEG plus léger."
+      });
     }
   });
 });
