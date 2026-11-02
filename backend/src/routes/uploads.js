@@ -7,9 +7,22 @@ const { auth, authorize } = require('../middlewares/auth');
 
 const router = express.Router();
 
-const { persistentImgDir, ensureImgDirs } = require('../config/imgPaths');
+const { persistentImgDir, repoImgDir, ensureImgDirs } = require('../config/imgPaths');
 ensureImgDirs();
-const uploadDir = persistentImgDir;
+
+function writableUploadDir() {
+  const candidates = [persistentImgDir, repoImgDir, '/tmp/nelya-img'];
+  for (const dir of candidates) {
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+      fs.accessSync(dir, fs.constants.W_OK);
+      return dir;
+    } catch {
+      /* try next */
+    }
+  }
+  return persistentImgDir;
+}
 
 // Formats acceptés en entrée. La sortie est toujours du WebP.
 const ALLOWED_INPUT_FORMATS = ['jpeg', 'png', 'webp', 'gif', 'avif', 'tiff'];
@@ -34,20 +47,22 @@ const upload = multer({
  * contenu, là où l'extension du nom de fichier ne prouvait rien.
  */
 async function compressToWebp(buffer, { maxWidth = MAX_WIDTH, maxHeight = MAX_HEIGHT } = {}) {
-  const image = sharp(buffer, { animated: false, failOn: 'none' });
-  const metadata = await image.metadata();
+  const input = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
+  const options = { animated: false, failOn: 'none' };
+  // metadata() consomme le pipeline : il faut un second sharp() pour l'encodage.
+  const metadata = await sharp(input, options).metadata();
 
   if (!ALLOWED_INPUT_FORMATS.includes(metadata.format)) {
     throw Object.assign(new Error(`Format d'image non supporté (${metadata.format || 'inconnu'})`), { status: 400 });
   }
 
-  const output = await image
-    .rotate() // applique l'orientation EXIF avant de perdre les métadonnées
+  const output = await sharp(input, options)
+    .rotate()
     .resize({
       width: maxWidth,
       height: maxHeight,
       fit: 'inside',
-      withoutEnlargement: true // ne jamais étirer une petite image
+      withoutEnlargement: true
     })
     .webp({ quality: WEBP_QUALITY })
     .toBuffer({ resolveWithObject: true });
@@ -78,8 +93,8 @@ router.post('/', auth, authorize('admin', 'seller'), (req, res, next) => {
       });
       const filename = `${isHero ? 'hero' : isLogo ? 'logo' : 'product'}_${Date.now()}_${Math.round(Math.random() * 1e9)}.webp`;
 
-      await fs.promises.mkdir(uploadDir, { recursive: true });
-      await fs.promises.writeFile(path.join(uploadDir, filename), buffer);
+      const destDir = writableUploadDir();
+      await fs.promises.writeFile(path.join(destDir, filename), buffer);
 
       return res.status(201).json({
         url: `/img/${filename}`,
@@ -94,18 +109,21 @@ router.post('/', auth, authorize('admin', 'seller'), (req, res, next) => {
         sourceFormat: source.format
       });
     } catch (error) {
-      console.error('[uploads]', error?.message || error);
+      console.error('[uploads]', error);
       if (error.status === 400) {
         return res.status(400).json({ message: error.message });
+      }
+      if (/Could not load the ["']sharp["'] module/i.test(error.message || '')) {
+        return res.status(500).json({ message: "Le module d'images Sharp n'est pas chargé sur le serveur." });
       }
       if (/unsupported image format|Input buffer|VipsWebp|VipsJpeg|corrupt/i.test(error.message || '')) {
         return res.status(400).json({ message: "Le fichier envoyé n'est pas une image valide. Utilisez un PNG ou JPEG." });
       }
       if (error.code === 'ENOSPC' || error.code === 'EACCES' || error.code === 'ENOENT') {
-        return res.status(500).json({ message: "Impossible d'enregistrer l'image sur le serveur." });
+        return res.status(500).json({ message: "Impossible d'enregistrer l'image sur le serveur (disque)." });
       }
       return res.status(500).json({
-        message: "L'image n'a pas pu être traitée. Réessayez avec un PNG ou un JPEG plus léger."
+        message: error.message || "L'image n'a pas pu être traitée. Réessayez avec un PNG ou un JPEG."
       });
     }
   });

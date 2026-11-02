@@ -5,7 +5,7 @@
 FROM node:20-alpine AS base
 
 # Installer des dépendances système pour la sécurité
-RUN apk add --no-cache dumb-init
+RUN apk add --no-cache dumb-init libc6-compat
 
 # Créer un utilisateur non-root pour la sécurité
 RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
