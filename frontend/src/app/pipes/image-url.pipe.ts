@@ -1,5 +1,5 @@
 import { Pipe, PipeTransform } from '@angular/core';
-import { API_BASE_URL } from '../config';
+import { resolveApiOrigin } from '../config';
 
 @Pipe({
   name: 'imageUrl',
@@ -13,7 +13,7 @@ export class ImageUrlPipe implements PipeTransform {
       return value.replace(/^\//, '');
     }
 
-    const origin = (API_BASE_URL || '').replace(/\/$/, '');
+    const origin = resolveApiOrigin();
     return `${origin}${value}`;
   }
 }

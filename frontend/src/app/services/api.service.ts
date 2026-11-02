@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { API_BASE_URL } from '../config';
+import { resolveApiOrigin } from '../config';
 
 export type QueryParams = Record<string, string | number | boolean | null | undefined>;
 
@@ -21,7 +21,7 @@ function toHttpParams(params: QueryParams = {}): HttpParams {
 })
 export class ApiService {
   private baseUrl = (() => {
-    const origin = API_BASE_URL.replace(/\/$/, '');
+    const origin = resolveApiOrigin();
     return origin ? `${origin}/api` : '/api';
   })();
 

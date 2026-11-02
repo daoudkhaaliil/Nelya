@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, tap, shareReplay, finalize, firstValueFrom } from 'rxjs';
-import { API_BASE_URL } from '../config';
+import { resolveApiOrigin } from '../config';
 
 export interface User {
   id: string;
@@ -21,7 +21,7 @@ export interface User {
 })
 export class AuthService {
   private apiUrl = (() => {
-    const origin = API_BASE_URL.replace(/\/$/, '');
+    const origin = resolveApiOrigin();
     return origin ? `${origin}/api/auth` : '/api/auth';
   })();
   private currentUserSubject = new BehaviorSubject<User | null>(null);
