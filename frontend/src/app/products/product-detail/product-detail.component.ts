@@ -60,7 +60,8 @@ import { AuthService } from '../../services/auth.service';
               <mat-icon *ngFor="let s of [1,2,3,4,5]">{{ s <= reviewAverage ? 'star' : 'star_border' }}</mat-icon>
               <span>{{ reviewCount ? (reviewAverage | number:'1.1-1') : '—' }} &middot; <button class="rating-link" (click)="scrollToReviews()">avis clients</button></span>
             </div>
-            <p class="info-price">{{ product.price | formatCurrency }}</p>
+            <p class="info-price">{{ unitPrice * quantity | formatCurrency }}</p>
+            <p class="info-unit-price" *ngIf="quantity > 1">{{ unitPrice | formatCurrency }} l’unité</p>
             <p class="info-points" *ngIf="pointsForProduct > 0">
               <mat-icon>stars</mat-icon>
               +{{ pointsForProduct }} pts fidélité par unité
@@ -250,7 +251,8 @@ import { AuthService } from '../../services/auth.service';
     .info-rating span { font-size: 0.8rem; color: var(--luxe-text-muted); margin-left: 6px; }
     .rating-link { background: none; border: none; padding: 0; cursor: pointer; color: var(--luxe-text-muted); text-decoration: underline; font-size: 0.8rem; }
     .rating-link:hover { color: var(--luxe-gold); }
-    .info-price { font-size: 2rem; color: var(--luxe-black); font-weight: 500; margin: 0 0 10px; }
+    .info-price { font-size: 2rem; color: var(--luxe-black); font-weight: 500; margin: 0 0 4px; }
+    .info-unit-price { margin: 0 0 10px; font-size: 0.88rem; color: var(--luxe-text-muted); font-weight: 400; }
     .info-points {
       display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
       color: var(--luxe-gold); font-size: 0.88rem; font-weight: 600; margin: 0 0 24px;
@@ -358,7 +360,7 @@ import { AuthService } from '../../services/auth.service';
       .info { position: relative; top: 0; order: 2; }
       .detail-skeleton-grid { grid-template-columns: 1fr; }
       .info-trust { flex-wrap: wrap; }
-      .gallery-main { cursor: default; }
+      .gallery-main { cursor: zoom-in; }
       .gallery-zoom-hint { opacity: 1; }
       .lightbox-img { max-width: 94vw; max-height: 90vh; }
       .container { padding: 0 20px; }
@@ -394,6 +396,10 @@ export class ProductDetailComponent implements OnInit {
     private api: ApiService,
     private auth: AuthService
   ) {}
+
+  get unitPrice(): number {
+    return Number(this.product?.price) || 0;
+  }
 
   get pointsForProduct(): number {
     return this.settings.pointsForPrice(this.product?.price);
@@ -462,7 +468,7 @@ export class ProductDetailComponent implements OnInit {
   }
 
   openLightbox() {
-    if (window.innerWidth < 960 || this.zoomed) return;
+    this.zoomed = false;
     this.lightboxOpen = true;
   }
 
